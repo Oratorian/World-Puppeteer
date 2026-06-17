@@ -29,8 +29,8 @@ Category patterns:
 | Field | Requirement |
 |-------|-------------|
 | `name` | Must match object key exactly |
-| `description` | What this trait mechanically does (3 sentences, effect-focused) |
-| `quirk` | The AI narrator's primary reference for this trait's effects |
+| `description` | What the trait is — shown to players at character creation (full paragraph) |
+| `quirk` | The narrator's reference for portraying the trait. Usually the same as `description`; elaborate further or add hidden aspects the player shouldn't see |
 | `attributes` | Array of attribute modifiers (can be empty `[]`) |
 | `skills` | Array of skill modifiers (can be empty `[]`) |
 | `resources` | Array of resource modifiers (can be empty `[]`) |
@@ -41,11 +41,10 @@ Category patterns:
 
 ## description and quirk
 
-For **non-species traits** (Perception, Attributes, Expertise):
-- `description` and `quirk` must be **identical** (same text)
-- 3 sentences, effect-focused
-- Describes what the trait mechanically DOES, not personality flavor
-- The `quirk` is the AI narrator's primary reference for mechanical effects during play
+For **non-species traits**:
+- By default, `description` and `quirk` carry the **same content** — write both as full paragraphs.
+- `description` is shown to players at character creation. `quirk` is the narrator's reference during play.
+- Let them **diverge** only when: (a) the quirk holds hidden aspects the player shouldn't know, or (b) the description is a shorter summary and the quirk is the elaborated, fuller version.
 
 For **species traits**, see the Species Traits section below.
 

@@ -24,6 +24,8 @@ Edit `tabs/triggers.json`.
 | `recurring` | Set to `true` only when trigger should fire every turn conditions are met |
 | `script` | Only when declarative conditions/effects can't express the logic (branching, derived math, cross-trigger coordination). See [trigger-scripts-reference.md](references/trigger-scripts-reference.md) |
 
+**Trigger-script gotchas:** a `story` effect on **tick 0 does not change the opening** — put opening narration in the story-start text or fire at tick >= 1. Scripts go only in the top-level `script` field; never invent JS condition/effect types. Full details in the reference.
+
 ## Never Include
 
 Omit these fields (auto-set or unused):
