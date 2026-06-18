@@ -32,6 +32,7 @@ Edit `tabs/quests.json`.
 ## Never Include
 
 Omit these fields (auto-set or runtime-only):
+- `questType`
 - `id`, `creationTick`, `status`, `detectionTick`, `acceptedTick`
 - `expiryTick`, `completedTick`, `abandonedTick`, `rejectedTick`
 - `startingArea`, `connectingAreaName`, `questAreas`

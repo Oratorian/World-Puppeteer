@@ -64,6 +64,7 @@ interface Quest {
   arcEscalationAtCreation?: number  // ✅ Arc escalation level snapshot at quest creation (auto-generated for engine quests)
 
   // === RUNTIME STATE (set during gameplay) ===
+  questType?: 'acquire' | 'rescue' | 'combat' | 'assassination' | 'social' | 'investigate'  // Quest category (never read by engine)
   detectionTick?: number          // Set when quest becomes available
   acceptedTick?: number           // Set when player accepts
   expiryTick?: number             // Set if quest can expire
