@@ -116,7 +116,7 @@ These must be configured per-world:
 | `skillSettings.skillTypeDifficultyBonus` | Always include `"none": 0`, others creative |
 | `itemSettings.currencyName` | Thematic currency name |
 | `itemSettings.itemCategories` | Always include `"Armor"`, `"Consumable"`, plus world-specific |
-| `itemSettings.itemSlots` | Always include 7 armor slots, plus world-specific |
+| `itemSettings.itemSlots` | World-specific |
 | `combatSettings.damageTypes` | Types that fit world theme |
 | `characterCreationMusic` | Optional top-level field. `"fantasy"` or `"nonfantasy"` background music for the character-creation screen. Defaults to `"fantasy"` |
 
@@ -129,24 +129,6 @@ Each entry follows this structure: **"You have a weak [domain]. [What skill type
 - Sentence 3: Describe the practical effect on learning and reliability
 - Reference skill/ability type names, not individual skill names
 - Not every attribute needs an entry; omit attributes where a low value doesn't make narrative sense
-
-## Required Item Slots
-
-Always include these 7 armor slots:
-
-```json
-[
-  { "slot": "head", "category": "Armor", "quantity": 1 },
-  { "slot": "chest", "category": "Armor", "quantity": 1 },
-  { "slot": "shoulders", "category": "Armor", "quantity": 1 },
-  { "slot": "hands", "category": "Armor", "quantity": 1 },
-  { "slot": "waist", "category": "Armor", "quantity": 1 },
-  { "slot": "legs", "category": "Armor", "quantity": 1 },
-  { "slot": "feet", "category": "Armor", "quantity": 1 }
-]
-```
-
-Additional slots are world-specific.
 
 ## Schema
 
