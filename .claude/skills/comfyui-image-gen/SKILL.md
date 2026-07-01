@@ -32,10 +32,36 @@ mkdir -p .claude/skills/comfyui-image-gen
 curl -L -o /tmp/comfyui-api-cli.zip \
   https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip
 
-# (optional) verify the zip — only works once CI publishes the matching .sha256 asset:
-#   curl -L -o /tmp/comfyui-api-cli.zip.sha256 \
-#     https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip.sha256
-#   echo "$(cat /tmp/comfyui-api-cli.zip.sha256)  /tmp/comfyui-api-cli.zip" | sha256sum -c -
+# (IMPORTANT!) verify the download. Three tiers, strongest first:
+#   1. gh attestation verify  — full cryptographic provenance (needs gh CLI)
+#   2. curl the attestations REST API by digest — proves an attestation exists
+#      for THIS exact hash in this repo (no gh needed; works unauthenticated on
+#      a public repo). Does not re-check the Sigstore signature, but binds the
+#      binary's hash to a repo attestation — much stronger than a checksum alone.
+#   3. .sha256 checksum — integrity only (bytes intact), last resort.
+digest=$(sha256sum /tmp/comfyui-api-cli.zip | awk '{print $1}')
+verified=""
+if command -v gh >/dev/null 2>&1 && \
+   gh attestation verify /tmp/comfyui-api-cli.zip --repo Oratorian/comfyui-api >/dev/null 2>&1; then
+  verified="attestation (gh)"
+else
+  # No gh (or it failed): query the attestations API directly by digest.
+  count=$(curl -sL -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/Oratorian/comfyui-api/attestations/sha256:$digest" \
+    | grep -c '"bundle_url"')   # >=1 means an attestation exists for this hash
+  if [ "${count:-0}" -ge 1 ]; then
+    verified="attestation (api)"
+  else
+    # Fall back to the published checksum. Compare the hash field directly (the
+    # .sha256 lists the original asset name; our local file is renamed).
+    expected=$(curl -sL \
+      https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip.sha256 \
+      | awk '{print $1}')
+    [ -n "$expected" ] && [ "$expected" = "$digest" ] && verified="checksum"
+  fi
+fi
+[ -n "$verified" ] || { echo "verification FAILED — do not run"; exit 1; }
+echo "verified via: $verified"
 
 # extract just cli.exe into the skill folder
 unzip -o -j /tmp/comfyui-api-cli.zip cli.exe -d .claude/skills/comfyui-image-gen/
@@ -44,15 +70,95 @@ unzip -o -j /tmp/comfyui-api-cli.zip cli.exe -d .claude/skills/comfyui-image-gen
 PowerShell equivalent:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip" -OutFile "$env:TEMP\comfyui-api-cli.zip"
-# (optional) verify once a .sha256 asset exists:
-#   $expected = (Invoke-WebRequest -Uri "https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip.sha256").Content.Trim().Split()[0]
-#   if ((Get-FileHash "$env:TEMP\comfyui-api-cli.zip" -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw "checksum mismatch — do not run" }
-Expand-Archive -Path "$env:TEMP\comfyui-api-cli.zip" -DestinationPath "$env:TEMP\comfyui-api-cli" -Force
+$zip = "$env:TEMP\comfyui-api-cli.zip"
+Invoke-WebRequest -Uri "https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip" -OutFile $zip
+
+# (IMPORTANT!) verify. Three tiers, strongest first:
+#   1. gh attestation verify (full provenance)  2. attestations REST API by
+#   digest (no gh needed)  3. .sha256 checksum (integrity only).
+$digest = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+$verified = $null
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    gh attestation verify $zip --repo Oratorian/comfyui-api 2>$null
+    if ($LASTEXITCODE -eq 0) { $verified = "attestation (gh)" }
+}
+if (-not $verified) {
+    # No gh (or it failed): query the attestations API directly by digest.
+    try {
+        $att = Invoke-RestMethod -Headers @{ Accept = "application/vnd.github+json" } `
+            -Uri "https://api.github.com/repos/Oratorian/comfyui-api/attestations/sha256:$digest"
+        if ($att.attestations.Count -ge 1) { $verified = "attestation (api)" }
+    } catch { }
+}
+if (-not $verified) {
+    # Fall back to the published checksum (integrity only).
+    $expected = (Invoke-WebRequest -Uri "https://github.com/Oratorian/comfyui-api/releases/latest/download/comfyui-api-cli-windows.zip.sha256").Content.Trim().Split()[0]
+    if ($digest -eq $expected) { $verified = "checksum" }
+}
+if (-not $verified) { throw "verification FAILED — do not run" }
+Write-Host "verified via: $verified"
+
+Expand-Archive -Path $zip -DestinationPath "$env:TEMP\comfyui-api-cli" -Force
 Copy-Item "$env:TEMP\comfyui-api-cli\cli.exe" ".claude\skills\comfyui-image-gen\cli.exe" -Force
 ```
 
-**Checksum:** verify the downloaded zip with SHA256 when a `comfyui-api-cli-windows.zip.sha256` asset is available (the verify lines above, currently commented out). If the checksum fails, the download is corrupt or tampered — stop and re-fetch, do not run it.
+**Verify the download (attestation first, checksum last).** Every release
+carries a GitHub build-provenance attestation *and* a `comfyui-api-cli-windows.zip.sha256`
+asset. Verify in three tiers, strongest first (the snippets above do this
+automatically):
+
+1. **`gh attestation verify <zip> --repo Oratorian/comfyui-api`** — full
+   cryptographic provenance. Requires the `gh` CLI. Best when available.
+2. **Attestations REST API by digest** — for clients without `gh`. Compute the
+   zip's SHA-256, then
+   `GET https://api.github.com/repos/Oratorian/comfyui-api/attestations/sha256:<digest>`
+   (plain `curl`, no auth needed on this public repo). A non-empty
+   `attestations` array means an attestation exists for *this exact hash* in
+   this repo — much stronger than a checksum, though it doesn't re-check the
+   Sigstore signature the way tier 1 does.
+3. **`.sha256` checksum** — integrity only (bytes intact, origin unproven). Last
+   resort when neither attestation path is reachable.
+
+If none of the tiers verifies, the download is corrupt or tampered — stop,
+re-fetch, and do not run it.
+
+### Checking for updates
+
+`cli.exe` has no self-update. To check whether a newer build is available,
+read the installed binary's version with `cli.exe --version` and compare it
+against the latest release tag from the GitHub API.
+
+```bash
+# from project root
+cli=".claude/skills/comfyui-image-gen/cli.exe"
+[ -f "$cli" ] || { echo "not installed — see 'Getting cli.exe'"; exit 0; }
+local=$("$cli" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+latest=$(curl -sL "https://api.github.com/repos/Oratorian/comfyui-api/releases/latest" \
+  | grep -oE '"tag_name":\s*"[^"]+"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
+if [ -z "$local" ]; then
+  echo "update available — installed build predates '--version' (latest v$latest)"
+elif [ "$local" = "$latest" ]; then
+  echo "up to date (v$latest)"
+else
+  echo "update available — installed v$local, latest v$latest"
+fi
+```
+
+```powershell
+# from project root
+$cli = ".claude\skills\comfyui-image-gen\cli.exe"
+if (-not (Test-Path $cli)) { "not installed — see 'Getting cli.exe'"; return }
+$local  = (& $cli --version 2>$null | Select-String -Pattern '\d+\.\d+\.\d+' | ForEach-Object { $_.Matches[0].Value } | Select-Object -First 1)
+$latest = ((Invoke-RestMethod "https://api.github.com/repos/Oratorian/comfyui-api/releases/latest").tag_name -replace '^v','')
+if (-not $local)            { "update available — installed build predates '--version' (latest v$latest)" }
+elseif ($local -eq $latest) { "up to date (v$latest)" }
+else                        { "update available — installed v$local, latest v$latest" }
+```
+
+A binary that doesn't recognize `--version` predates the release that added
+the flag, so treat that as "update available." To upgrade, re-run the
+**Getting cli.exe** steps — they re-download, re-verify (attestation →
+checksum), and overwrite the binary.
 
 **Linux / macOS — run from source.** There is no `.exe` for non-Windows. Clone [Oratorian/comfyui-api](https://github.com/Oratorian/comfyui-api), install its requirements, and call the Python entrypoint directly — it takes the same flags as `cli.exe`:
 
